@@ -13,7 +13,6 @@ import java.util.UUID;
 public class Video {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(nullable = false)
