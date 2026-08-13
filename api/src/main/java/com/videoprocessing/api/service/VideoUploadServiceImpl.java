@@ -5,6 +5,7 @@ import com.videoprocessing.api.entity.ProcessingJob;
 import com.videoprocessing.api.entity.ProcessingJobStatus;
 import com.videoprocessing.api.entity.Video;
 import com.videoprocessing.api.entity.VideoStatus;
+import com.videoprocessing.api.exception.InvalidVideoException;
 import com.videoprocessing.api.repository.ProcessingJobRepository;
 import com.videoprocessing.api.repository.VideoRepository;
 
@@ -37,7 +38,7 @@ public class VideoUploadServiceImpl implements VideoUploadService {
     public VideoUploadResponse uploadVideo(MultipartFile file) {
 
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException(
+            throw new InvalidVideoException(
                     "Video file is required"
             );
         }

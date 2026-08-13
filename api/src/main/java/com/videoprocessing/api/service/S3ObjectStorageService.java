@@ -1,5 +1,6 @@
 package com.videoprocessing.api.service;
 
+import com.videoprocessing.api.exception.ObjectStorageException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -48,8 +49,8 @@ public class S3ObjectStorageService implements ObjectStorageService {
             return objectKey;
 
         } catch (IOException e) {
-            throw new RuntimeException(
-                    "Failed to read uploaded video",
+            throw new ObjectStorageException(
+                    "Failed to upload video to object storage",
                     e
             );
         }
