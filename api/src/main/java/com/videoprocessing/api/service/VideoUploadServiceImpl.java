@@ -5,6 +5,7 @@ import com.videoprocessing.api.entity.ProcessingJob;
 import com.videoprocessing.api.entity.ProcessingJobStatus;
 import com.videoprocessing.api.entity.Video;
 import com.videoprocessing.api.entity.VideoStatus;
+import com.videoprocessing.api.event.VideoProcessingEvent;
 import com.videoprocessing.api.exception.InvalidVideoException;
 import com.videoprocessing.api.repository.ProcessingJobRepository;
 import com.videoprocessing.api.repository.VideoRepository;
@@ -22,15 +23,18 @@ public class VideoUploadServiceImpl implements VideoUploadService {
     private final ObjectStorageService objectStorageService;
     private final VideoRepository videoRepository;
     private final ProcessingJobRepository processingJobRepository;
+    private final VideoProcessingEventPublisher eventPublisher;
 
     public VideoUploadServiceImpl(
             ObjectStorageService objectStorageService,
             VideoRepository videoRepository,
-            ProcessingJobRepository processingJobRepository
+            ProcessingJobRepository processingJobRepository,
+            VideoProcessingEventPublisher eventPublisher
     ) {
         this.objectStorageService = objectStorageService;
         this.videoRepository = videoRepository;
         this.processingJobRepository = processingJobRepository;
+        this.eventPublisher=eventPublisher;
     }
 
     @Override
@@ -71,6 +75,7 @@ public class VideoUploadServiceImpl implements VideoUploadService {
 
         ProcessingJob job = new ProcessingJob();
 
+
         job.setVideo(savedVideo);
         job.setStatus(ProcessingJobStatus.QUEUED);
         job.setProgress(0);
@@ -79,6 +84,11 @@ public class VideoUploadServiceImpl implements VideoUploadService {
 
         ProcessingJob savedJob =
                 processingJobRepository.save(job);
+
+        VideoProcessingEvent event = new VideoProcessingEvent(savedJob.getId(),
+                savedVideo.getId(),
+                savedVideo.getOriginalS3Key());
+        eventPublisher.publish(event);
 
         return new VideoUploadResponse(
                 savedVideo.getId(),
