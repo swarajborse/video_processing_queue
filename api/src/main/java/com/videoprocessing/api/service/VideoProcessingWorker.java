@@ -17,16 +17,19 @@ public class VideoProcessingWorker {
     private final ObjectStorageService objectStorageService;
     private final ProcessingJobRepository processingJobRepository;
     private final ProcessingWorkspaceManager workspaceManager;
+    private final FFmpegService ffmpegService;
 
 
     public VideoProcessingWorker(
             ObjectStorageService objectStorageService,
             ProcessingJobRepository processingJobRepository,
-            ProcessingWorkspaceManager workspaceManager
+            ProcessingWorkspaceManager workspaceManager,
+            FFmpegService ffmpegService
     ) {
         this.objectStorageService = objectStorageService;
         this.processingJobRepository = processingJobRepository;
         this.workspaceManager = workspaceManager;
+        this.ffmpegService=ffmpegService;
     }
 
     public void process(VideoProcessingEvent event) {
@@ -64,7 +67,14 @@ public class VideoProcessingWorker {
                             + workspace.originalVideo()
             );
 
-            // FFmpeg will be added here
+            Path processedVideo =
+                    workspace.directory()
+                            .resolve("processed.mp4");
+
+            ffmpegService.execute(
+                    workspace.originalVideo(),
+                    processedVideo
+            );
 
         } finally {
 
