@@ -7,19 +7,17 @@ import org.springframework.stereotype.Service;
 public class VideoProcessingServiceImpl
         implements VideoProcessingService {
 
+    private final VideoProcessingWorker worker;
+
+    public VideoProcessingServiceImpl(
+            VideoProcessingWorker worker
+    ) {
+        this.worker = worker;
+    }
+
     @Override
     public void process(VideoProcessingEvent event) {
 
-        System.out.println(
-                "Processing video: " + event.videoId()
-        );
-
-        System.out.println(
-                "Job ID: " + event.jobId()
-        );
-
-        System.out.println(
-                "Original S3 key: " + event.originalS3Key()
-        );
+        worker.process(event);
     }
 }
