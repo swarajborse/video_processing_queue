@@ -7,7 +7,6 @@ import com.videoprocessing.api.repository.ProcessingJobRepository;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 
@@ -19,7 +18,6 @@ public class VideoProcessingWorker {
     private final ProcessingWorkspaceManager workspaceManager;
     private final FFmpegService ffmpegService;
 
-
     public VideoProcessingWorker(
             ObjectStorageService objectStorageService,
             ProcessingJobRepository processingJobRepository,
@@ -29,7 +27,7 @@ public class VideoProcessingWorker {
         this.objectStorageService = objectStorageService;
         this.processingJobRepository = processingJobRepository;
         this.workspaceManager = workspaceManager;
-        this.ffmpegService=ffmpegService;
+        this.ffmpegService = ffmpegService;
     }
 
     public void process(VideoProcessingEvent event) {
@@ -57,6 +55,7 @@ public class VideoProcessingWorker {
 
         try {
 
+            // 1. Download original video
             objectStorageService.download(
                     event.originalS3Key(),
                     workspace.originalVideo()
@@ -67,17 +66,42 @@ public class VideoProcessingWorker {
                             + workspace.originalVideo()
             );
 
+            // 2. Create output path
             Path processedVideo =
                     workspace.directory()
                             .resolve("processed.mp4");
 
+            // 3. Run FFmpeg
             ffmpegService.execute(
                     workspace.originalVideo(),
                     processedVideo
             );
 
+            System.out.println(
+                    "Processed video created at: "
+                            + processedVideo
+            );
+
+        }catch (Exception e) {
+
+            job.setStatus(
+                    ProcessingJobStatus.FAILED
+            );
+
+            String errorMessage =
+                    e.getMessage() != null
+                            ? e.getMessage()
+                            : e.getClass().getSimpleName();
+
+            job.setLastError(errorMessage);
+
+            processingJobRepository.save(job);
+
+            throw e;
+
         } finally {
 
+            // 4. Always cleanup local files
             workspaceManager.cleanup(workspace);
         }
     }
