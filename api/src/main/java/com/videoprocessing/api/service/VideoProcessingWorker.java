@@ -2,13 +2,16 @@ package com.videoprocessing.api.service;
 
 import com.videoprocessing.api.entity.ProcessingJob;
 import com.videoprocessing.api.entity.ProcessingJobStatus;
+import com.videoprocessing.api.enum_.VideoResolution;
 import com.videoprocessing.api.event.VideoProcessingEvent;
+import com.videoprocessing.api.model.VideoMetadata;
 import com.videoprocessing.api.repository.ProcessingJobRepository;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
 
 @Component
 public class VideoProcessingWorker {
@@ -17,17 +20,25 @@ public class VideoProcessingWorker {
     private final ProcessingJobRepository processingJobRepository;
     private final ProcessingWorkspaceManager workspaceManager;
     private final FFmpegService ffmpegService;
+    private final ResolutionSelector resolutionSelector;
+    private final FFprobeService ffprobeService;
+
+
 
     public VideoProcessingWorker(
             ObjectStorageService objectStorageService,
             ProcessingJobRepository processingJobRepository,
             ProcessingWorkspaceManager workspaceManager,
-            FFmpegService ffmpegService
+            FFmpegService ffmpegService,
+            ResolutionSelector resolutionSelector,
+            FFprobeService ffprobeService
     ) {
         this.objectStorageService = objectStorageService;
         this.processingJobRepository = processingJobRepository;
         this.workspaceManager = workspaceManager;
         this.ffmpegService = ffmpegService;
+        this.resolutionSelector = resolutionSelector;
+        this.ffprobeService = ffprobeService;
     }
 
     public void process(VideoProcessingEvent event) {
@@ -53,6 +64,7 @@ public class VideoProcessingWorker {
         ProcessingWorkspace workspace =
                 workspaceManager.create();
 
+
         try {
 
             // 1. Download original video
@@ -66,20 +78,50 @@ public class VideoProcessingWorker {
                             + workspace.originalVideo()
             );
 
-            // 2. Create output path
-            Path processedVideo =
-                    workspace.directory()
-                            .resolve("processed.mp4");
-
-            // 3. Run FFmpeg
-            ffmpegService.execute(
-                    workspace.originalVideo(),
-                    processedVideo
-            );
+// 2. Extract video metadata using FFprobe
+            VideoMetadata metadata =
+                    ffprobeService.probe(
+                            workspace.originalVideo()
+                    );
 
             System.out.println(
-                    "Processed video created at: "
-                            + processedVideo
+                    "Video resolution: "
+                            + metadata.width()
+                            + "x"
+                            + metadata.height()
+            );
+
+// 3. Decide which resolutions to generate
+            List<VideoResolution> resolutions =
+                    resolutionSelector.select(metadata);
+
+// 4. Generate each selected resolution
+            for (VideoResolution resolution : resolutions) {
+
+                Path output =
+                        workspace.outputPath(resolution);
+
+                ffmpegService.execute(
+                        workspace.originalVideo(),
+                        output,
+                        resolution
+                );
+
+                System.out.println(
+                        "Created "
+                                + resolution
+                                + " output: "
+                                + output
+                );
+            }
+
+
+            Path thumbnail =
+                    workspace.thumbnailPath();
+
+            ffmpegService.generateThumbnail(
+                    workspace.originalVideo(),
+                    thumbnail
             );
 
         }catch (Exception e) {
