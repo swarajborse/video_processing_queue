@@ -66,6 +66,10 @@ public class ProcessingJob {
     @Column(nullable = false)
     private Instant updatedAt;
 
+    private Integer width;
+    private Integer height;
+    private Double duration;
+
     public ProcessingJob() {
     }
 

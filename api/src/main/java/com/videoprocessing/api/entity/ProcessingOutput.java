@@ -37,6 +37,8 @@ public class ProcessingOutput {
 
     private String contentType;
 
+
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
