@@ -70,6 +70,9 @@ public class ProcessingJob {
     private Integer height;
     private Double duration;
 
+
+    private Instant lastHeartbeatAt;
+
     public ProcessingJob() {
     }
 

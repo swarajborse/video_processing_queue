@@ -10,7 +10,6 @@ import com.videoprocessing.api.repository.ProcessingJobRepository;
 import com.videoprocessing.api.repository.ProcessingOutputRepository;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
@@ -20,33 +19,31 @@ public class VideoProcessingWorker {
 
     private final ObjectStorageService objectStorageService;
     private final ProcessingJobRepository processingJobRepository;
+    private final ProcessingOutputRepository processingOutputRepository;
     private final ProcessingWorkspaceManager workspaceManager;
     private final FFmpegService ffmpegService;
     private final ResolutionSelector resolutionSelector;
     private final FFprobeService ffprobeService;
     private final OutputKeyGenerator outputKeyGenerator;
-    private final ProcessingOutputRepository processingOutputRepository;
-
-
 
     public VideoProcessingWorker(
             ObjectStorageService objectStorageService,
             ProcessingJobRepository processingJobRepository,
+            ProcessingOutputRepository processingOutputRepository,
             ProcessingWorkspaceManager workspaceManager,
             FFmpegService ffmpegService,
             ResolutionSelector resolutionSelector,
             FFprobeService ffprobeService,
-            OutputKeyGenerator outputKeyGenerator,
-            ProcessingOutputRepository processingOutputRepository
+            OutputKeyGenerator outputKeyGenerator
     ) {
         this.objectStorageService = objectStorageService;
         this.processingJobRepository = processingJobRepository;
+        this.processingOutputRepository = processingOutputRepository;
         this.workspaceManager = workspaceManager;
         this.ffmpegService = ffmpegService;
         this.resolutionSelector = resolutionSelector;
         this.ffprobeService = ffprobeService;
         this.outputKeyGenerator = outputKeyGenerator;
-        this.processingOutputRepository = processingOutputRepository;
     }
 
     public void process(VideoProcessingEvent event) {
@@ -60,54 +57,68 @@ public class VideoProcessingWorker {
                                 )
                         );
 
-        job.setStatus(
-                ProcessingJobStatus.PROCESSING
-        );
+        /*
+         * Mark job as PROCESSING
+         */
+        Instant now = Instant.now();
 
-        job.setStartedAt(Instant.now());
+        job.setStatus(ProcessingJobStatus.PROCESSING);
+        job.setStartedAt(now);
+        job.setLastHeartbeatAt(now);
         job.setProgress(0);
+        job.setLastError(null);
 
         processingJobRepository.save(job);
+
+        private void updateHeartbeat(ProcessingJob job) {
+            job.setLastHeartbeatAt(Instant.now());
+            processingJobRepository.save(job);
+        }
 
         ProcessingWorkspace workspace =
                 workspaceManager.create();
 
-
         try {
 
-            // 1. Download original video
+            /*
+             * Step 1:
+             * Download original video from object storage
+             */
             objectStorageService.download(
                     event.originalS3Key(),
                     workspace.originalVideo()
             );
+            updateHeartbeat(job);
 
-            System.out.println(
-                    "Downloaded video to: "
-                            + workspace.originalVideo()
-            );
-
-// 2. Extract video metadata using FFprobe
+            /*
+             * Step 2:
+             * Read video metadata using FFprobe
+             */
             VideoMetadata metadata =
                     ffprobeService.probe(
                             workspace.originalVideo()
                     );
 
-            System.out.println(
-                    "Video resolution: "
-                            + metadata.width()
-                            + "x"
-                            + metadata.height()
-            );
 
-// 3. Decide which resolutions to generate
+
+            updateHeartbeat(job);
+            /*
+
+
+             * Step 3:
+             * Decide which resolutions can be generated
+             */
             List<VideoResolution> resolutions =
                     resolutionSelector.select(metadata);
 
-// 4. Generate each selected resolution
+            /*
+             * Step 4:
+             * Generate and upload processed videos
+             */
             for (VideoResolution resolution : resolutions) {
 
-                // Generate local output
-                Path output = workspace.outputPath(resolution);
+                Path output =
+                        workspace.outputPath(resolution);
 
                 ffmpegService.execute(
                         workspace.originalVideo(),
@@ -115,32 +126,50 @@ public class VideoProcessingWorker {
                         resolution
                 );
 
-                // Generate S3 key
                 String s3Key =
                         outputKeyGenerator.outputKey(
                                 event.videoId(),
                                 resolution
                         );
 
-                // Upload processed video to S3
                 objectStorageService.upload(
                         output,
                         s3Key
                 );
 
 
-                ProcessingOutput processingOutput = new ProcessingOutput();
+                updateHeartbeat(job);
 
-                processingOutput.setS3Key(s3Key);
+                /*
+                 * Save output information in database
+                 */
+                ProcessingOutput processingOutput =
+                        new ProcessingOutput();
+
+                processingOutput.setJob(job);
                 processingOutput.setResolution(
                         resolution.height() + "p"
                 );
+                processingOutput.setS3Key(s3Key);
 
-                processingOutputRepository.save(processingOutput);
+                processingOutputRepository.save(
+                        processingOutput
+                );
+
+
+                updateHeartbeat(job);
+
+
+
+
             }
 
-
-            Path thumbnail = workspace.thumbnailPath();
+            /*
+             * Step 5:
+             * Generate and upload thumbnail
+             */
+            Path thumbnail =
+                    workspace.thumbnailPath();
 
             ffmpegService.generateThumbnail(
                     workspace.originalVideo(),
@@ -157,31 +186,43 @@ public class VideoProcessingWorker {
                     thumbnailKey
             );
 
+            /*
+             * Save thumbnail information
+             */
             ProcessingOutput thumbnailOutput =
                     new ProcessingOutput();
 
-            thumbnailOutput.setS3Key(thumbnailKey);
+            thumbnailOutput.setJob(job);
             thumbnailOutput.setResolution("thumbnail");
+            thumbnailOutput.setS3Key(thumbnailKey);
 
-            processingOutputRepository.save(thumbnailOutput);
+            processingOutputRepository.save(
+                    thumbnailOutput
+            );
 
-
-            // Save video metadata
+            /*
+             * Step 6:
+             * Save original video metadata
+             */
             job.setWidth(metadata.width());
             job.setHeight(metadata.height());
             job.setDuration(metadata.duration());
 
-            // Processing finished successfully
+            /*
+             * Step 7:
+             * Mark job as successfully completed
+             */
             job.setProgress(100);
             job.setStatus(ProcessingJobStatus.COMPLETED);
 
             processingJobRepository.save(job);
 
-        }catch (Exception e) {
+        } catch (Exception e) {
 
-            job.setStatus(
-                    ProcessingJobStatus.FAILED
-            );
+            /*
+             * Processing failed
+             */
+            job.setStatus(ProcessingJobStatus.FAILED);
 
             String errorMessage =
                     e.getMessage() != null
@@ -192,11 +233,18 @@ public class VideoProcessingWorker {
 
             processingJobRepository.save(job);
 
+            /*
+             * Re-throw the exception so the
+             * message-processing layer knows
+             * that processing failed.
+             */
             throw e;
 
         } finally {
 
-            // 4. Always cleanup local files
+            /*
+             * Always remove temporary files
+             */
             workspaceManager.cleanup(workspace);
         }
     }
