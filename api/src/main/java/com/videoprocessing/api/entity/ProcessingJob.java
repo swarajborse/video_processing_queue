@@ -73,8 +73,16 @@ public class ProcessingJob {
 
     private Instant lastHeartbeatAt;
 
+    @Column(nullable = false)
+    private int retryCount = 0;
+
     public ProcessingJob() {
     }
+
+
+
+    private Instant nextRetryAt;
+
 
     @PrePersist
     protected void onCreate() {

@@ -25,7 +25,10 @@ public class VideoProcessingWorker {
     private final ResolutionSelector resolutionSelector;
     private final FFprobeService ffprobeService;
     private final OutputKeyGenerator outputKeyGenerator;
-
+    private final RetryHandler retryHandler;
+    private final KafkaVideoProcessingEventPublisher eventPublisher;
+    private final DeadLetterEventPublisher deadLetterEventPublisher;
+    private final RetryBackoffCalculator retryBackoffCalculator;
     public VideoProcessingWorker(
             ObjectStorageService objectStorageService,
             ProcessingJobRepository processingJobRepository,
@@ -34,7 +37,11 @@ public class VideoProcessingWorker {
             FFmpegService ffmpegService,
             ResolutionSelector resolutionSelector,
             FFprobeService ffprobeService,
-            OutputKeyGenerator outputKeyGenerator
+            OutputKeyGenerator outputKeyGenerator,
+            RetryHandler retryHandler,
+            KafkaVideoProcessingEventPublisher eventPublisher,
+            DeadLetterEventPublisher deadLetterEventPublisher,
+            RetryBackoffCalculator retryBackoffCalculator
     ) {
         this.objectStorageService = objectStorageService;
         this.processingJobRepository = processingJobRepository;
@@ -44,6 +51,10 @@ public class VideoProcessingWorker {
         this.resolutionSelector = resolutionSelector;
         this.ffprobeService = ffprobeService;
         this.outputKeyGenerator = outputKeyGenerator;
+        this.retryHandler = retryHandler;
+        this.eventPublisher = eventPublisher;
+        this.deadLetterEventPublisher = deadLetterEventPublisher;
+        this.retryBackoffCalculator = retryBackoffCalculator;
     }
 
     public void process(VideoProcessingEvent event) {
@@ -219,10 +230,8 @@ public class VideoProcessingWorker {
 
         } catch (Exception e) {
 
-            /*
-             * Processing failed
-             */
-            job.setStatus(ProcessingJobStatus.FAILED);
+            boolean retryable = retryHandler.isRetryable(e);
+            boolean canRetry = retryHandler.canRetry(job);
 
             String errorMessage =
                     e.getMessage() != null
@@ -231,15 +240,31 @@ public class VideoProcessingWorker {
 
             job.setLastError(errorMessage);
 
+            if (retryable && canRetry) {
+
+                int nextRetryCount = job.getRetryCount() + 1;
+
+                long delaySeconds =
+                        retryBackoffCalculator.calculateDelay(nextRetryCount);
+
+                job.setRetryCount(nextRetryCount);
+
+                job.setNextRetryAt(
+                        Instant.now().plusSeconds(delaySeconds)
+                );
+
+                job.setStatus(ProcessingJobStatus.PENDING);
+
+                processingJobRepository.save(job);
+
+                return;
+            }
+
+            job.setStatus(ProcessingJobStatus.FAILED);
+
             processingJobRepository.save(job);
 
-            /*
-             * Re-throw the exception so the
-             * message-processing layer knows
-             * that processing failed.
-             */
-            throw e;
-
+            deadLetterEventPublisher.publish(event);
         } finally {
 
             /*

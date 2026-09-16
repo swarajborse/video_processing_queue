@@ -21,4 +21,9 @@ public interface ProcessingJobRepository
             Instant time
     );
 
+    List<ProcessingJob> findByStatusAndNextRetryAtLessThanEqual(
+            ProcessingJobStatus status,
+            Instant time
+    );
+
 }
