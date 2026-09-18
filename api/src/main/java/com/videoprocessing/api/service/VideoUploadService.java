@@ -5,5 +5,5 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface VideoUploadService {
 
-    VideoUploadResponse uploadVideo(MultipartFile file);
+    VideoUploadResponse uploadVideo(MultipartFile file, String idempotencyKey);
 }

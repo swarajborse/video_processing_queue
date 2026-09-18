@@ -10,6 +10,8 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 @Service
@@ -53,6 +55,57 @@ public class S3ObjectStorageService implements ObjectStorageService {
         } catch (IOException e) {
             throw new ObjectStorageException(
                     "Failed to upload video to object storage",
+                    e
+            );
+        }
+    }
+
+    @Override
+    public void upload(Path file, String key) {
+
+        try {
+
+            if (!Files.exists(file)) {
+                throw new IllegalArgumentException(
+                        "File does not exist: " + file
+                );
+            }
+
+            if (!Files.isRegularFile(file)) {
+                throw new IllegalArgumentException(
+                        "Path is not a regular file: " + file
+                );
+            }
+
+            long fileSize = Files.size(file);
+
+            String contentType = Files.probeContentType(file);
+
+            if (contentType == null) {
+                contentType = "application/octet-stream";
+            }
+
+            PutObjectRequest request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType(contentType)
+                    .build();
+
+            try (InputStream inputStream = Files.newInputStream(file)) {
+
+                s3Client.putObject(
+                        request,
+                        RequestBody.fromInputStream(
+                                inputStream,
+                                fileSize
+                        )
+                );
+            }
+
+        } catch (IOException e) {
+
+            throw new RuntimeException(
+                    "Failed to upload local file to object storage: " + file,
                     e
             );
         }

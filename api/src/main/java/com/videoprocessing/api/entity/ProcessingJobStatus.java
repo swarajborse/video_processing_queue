@@ -5,6 +5,5 @@ public enum ProcessingJobStatus {
     QUEUED,
     PROCESSING,
     COMPLETED,
-    FAILED,
-    PENDING
+    FAILED
 }

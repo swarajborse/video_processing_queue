@@ -15,4 +15,10 @@ public interface ObjectStorageService {
             String objectKey,
             Path destination
     );
+
+    void upload(
+            Path file,
+            String key
+    );
+
 }

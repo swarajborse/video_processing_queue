@@ -6,6 +6,7 @@ import com.videoprocessing.api.event.VideoProcessingEvent;
 import com.videoprocessing.api.repository.ProcessingJobRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -24,13 +25,14 @@ public class RetryScheduler {
         this.eventPublisher = eventPublisher;
     }
 
-    @Scheduled(fixedDelay = 1000)
+    @Transactional
+    @Scheduled(fixedDelay = 30_000)
     public void publishReadyRetries() {
 
         List<ProcessingJob> jobs =
                 processingJobRepository
                         .findByStatusAndNextRetryAtLessThanEqual(
-                                ProcessingJobStatus.PENDING,
+                                ProcessingJobStatus.QUEUED,
                                 Instant.now()
                         );
 
@@ -43,7 +45,8 @@ public class RetryScheduler {
             eventPublisher.publish(
                     new VideoProcessingEvent(
                             job.getId(),
-                            job.getVideoId()
+                            job.getVideo().getId(),
+                            job.getVideo().getOriginalS3Key()
                     )
             );
         }

@@ -17,7 +17,9 @@ public class VideoProcessingConsumer {
 
     @KafkaListener(
             topics = "${app.kafka.video-processing-topic}",
-            groupId = "${spring.kafka.consumer.group-id}"
+            groupId = "${spring.kafka.consumer.group-id}",
+            concurrency = "${video.processing.kafka.concurrency:3}"
+
     )
     public void consume(VideoProcessingEvent event) {
 

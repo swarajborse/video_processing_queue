@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Optional;
 import java.util.UUID;
 
 
@@ -39,7 +40,7 @@ public class VideoUploadServiceImpl implements VideoUploadService {
 
     @Override
     @Transactional
-    public VideoUploadResponse uploadVideo(MultipartFile file) {
+    public VideoUploadResponse uploadVideo(MultipartFile file,String idempotencyKey) {
 
         if (file == null || file.isEmpty()) {
             throw new InvalidVideoException(
@@ -73,9 +74,26 @@ public class VideoUploadServiceImpl implements VideoUploadService {
         Video savedVideo =
                 videoRepository.save(video);
 
+
+        Optional<ProcessingJob> existingJob =
+                processingJobRepository
+                        .findByIdempotencyKey(idempotencyKey);
+
+        if (existingJob.isPresent()) {
+
+            ProcessingJob job = existingJob.get();
+
+            return new VideoUploadResponse(
+                    job.getVideo().getId(),
+                    job.getId(),
+                    job.getVideo().getStatus()
+            );
+        }
+
+
+
         ProcessingJob job = new ProcessingJob();
-
-
+        job.setIdempotencyKey(idempotencyKey);
         job.setVideo(savedVideo);
         job.setStatus(ProcessingJobStatus.QUEUED);
         job.setProgress(0);

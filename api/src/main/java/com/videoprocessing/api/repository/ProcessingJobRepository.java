@@ -26,4 +26,6 @@ public interface ProcessingJobRepository
             Instant time
     );
 
+    Optional<ProcessingJob> findByIdempotencyKey(String idempotencyKey);
+
 }

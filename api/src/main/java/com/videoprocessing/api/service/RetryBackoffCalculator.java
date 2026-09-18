@@ -24,7 +24,7 @@ public class RetryBackoffCalculator {
 
         long delay =
                 initialDelaySeconds *
-                        (1LretryCount - 1)) << (;
+                        (1L << (retryCount - 1));
 
         return Math.min(
                 delay,

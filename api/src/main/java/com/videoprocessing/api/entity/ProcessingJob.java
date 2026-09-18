@@ -18,6 +18,14 @@ import java.util.UUID;
                 @Index(
                         name = "idx_processing_jobs_status",
                         columnList = "status"
+                ),
+                @Index(
+                        name = "idx_job_status_heartbeat",
+                        columnList = "status,last_heartbeat_at"
+                ),
+                @Index(
+                        name = "idx_job_status_retry",
+                        columnList = "status,next_retry_at"
                 )
         }
 )
@@ -73,8 +81,11 @@ public class ProcessingJob {
 
     private Instant lastHeartbeatAt;
 
-    @Column(nullable = false)
-    private int retryCount = 0;
+
+
+
+    @Column(nullable = false, unique = true)
+    private String idempotencyKey;
 
     public ProcessingJob() {
     }
