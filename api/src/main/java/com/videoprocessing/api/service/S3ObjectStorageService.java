@@ -4,9 +4,11 @@ import com.videoprocessing.api.exception.ObjectStorageException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
@@ -139,11 +141,18 @@ public class S3ObjectStorageService implements ObjectStorageService {
     }
 
     @Override
-    public String generatePresignedDownloadUrl(String objectKey, int expirationMinutes) {
+    public String generatePresignedDownloadUrl(String objectKey, int expirationMinutes, String filename) {
         try {
+            // Build a sanitised Content-Disposition header value.
+            // Using RFC 5987 ASCII fallback keeps it simple and widely compatible.
+            String safeFilename = filename != null
+                    ? filename.replaceAll("[^\\w.\\-]", "_")
+                    : "download";
+
             GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                     .bucket(bucket)
                     .key(objectKey)
+                    .responseContentDisposition("attachment; filename=\"" + safeFilename + "\"")
                     .build();
 
             GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
@@ -158,6 +167,22 @@ public class S3ObjectStorageService implements ObjectStorageService {
             throw new ObjectStorageException(
                     "Failed to generate presigned URL for key: " + objectKey,
                     e
+            );
+        }
+    }
+
+    @Override
+    public java.io.InputStream streamObject(String objectKey) {
+        try {
+            GetObjectRequest request = GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(objectKey)
+                    .build();
+            ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
+            return response;
+        } catch (Exception e) {
+            throw new ObjectStorageException(
+                    "Failed to stream object from storage: " + objectKey, e
             );
         }
     }

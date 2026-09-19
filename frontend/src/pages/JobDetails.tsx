@@ -20,10 +20,14 @@ function InfoRow({ label, value, mono }: { label: string; value: React.ReactNode
   );
 }
 
-function OutputRow({ output }: { output: OutputItem }) {
+function OutputRow({ output, jobId }: { output: OutputItem; jobId: string }) {
   const label = output.type === "THUMBNAIL"
     ? "Thumbnail"
     : output.resolution ?? output.type;
+
+  // Route all downloads through the API proxy (/api/videos/jobs/{jobId}/outputs/{outputId}/download)
+  // This avoids direct browser→MinIO connections which may be blocked or time out.
+  const proxyDownloadUrl = `/api/videos/jobs/${jobId}/outputs/${output.outputId}/download`;
 
   return (
     <div className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
@@ -33,20 +37,14 @@ function OutputRow({ output }: { output: OutputItem }) {
           <span className="text-xs text-slate-400">{formatFileSize(output.fileSize)}</span>
         )}
       </div>
-      {output.downloadUrl ? (
-        <a
-          id={`download-${output.outputId}`}
-          href={output.downloadUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn-secondary text-xs"
-          download
-        >
-          Download
-        </a>
-      ) : (
-        <span className="text-xs text-slate-300">URL unavailable</span>
-      )}
+      <a
+        id={`download-${output.outputId}`}
+        href={proxyDownloadUrl}
+        className="btn-secondary text-xs"
+        download
+      >
+        Download
+      </a>
     </div>
   );
 }
@@ -196,7 +194,7 @@ export const JobDetails: React.FC = () => {
                 </div>
                 <div className="px-4 py-1">
                   {detail.outputs.map((output) => (
-                    <OutputRow key={output.outputId} output={output} />
+                    <OutputRow key={output.outputId} output={output} jobId={detail.jobId} />
                   ))}
                 </div>
               </div>

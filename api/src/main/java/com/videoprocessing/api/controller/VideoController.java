@@ -11,7 +11,10 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -98,5 +101,32 @@ public class VideoController {
     ) {
         JobStatusResponse status = videoQueryService.getJobStatus(jobId);
         return ResponseEntity.ok(new ApiResponse<>(true, status, "Job status retrieved"));
+    }
+
+    @GetMapping("/jobs/{jobId}/outputs/{outputId}/download")
+    public ResponseEntity<InputStreamResource> downloadOutput(
+            @PathVariable UUID jobId,
+            @PathVariable UUID outputId
+    ) {
+        VideoQueryService.OutputStreamResult result = videoQueryService.streamOutput(jobId, outputId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=\"" + result.filename() + "\"");
+        if (result.fileSize() > 0) {
+            headers.setContentLength(result.fileSize());
+        }
+
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(result.contentType());
+        } catch (Exception e) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(mediaType)
+                .body(new InputStreamResource(result.stream()));
     }
 }

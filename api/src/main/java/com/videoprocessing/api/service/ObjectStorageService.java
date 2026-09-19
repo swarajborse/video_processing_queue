@@ -2,6 +2,7 @@ package com.videoprocessing.api.service;
 
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.nio.file.Path;
 
 public interface ObjectStorageService {
@@ -23,6 +24,13 @@ public interface ObjectStorageService {
 
     String generatePresignedDownloadUrl(
             String objectKey,
-            int expirationMinutes
+            int expirationMinutes,
+            String filename
     );
+
+    /**
+     * Opens a streaming InputStream for the given object key.
+     * Caller is responsible for closing the stream.
+     */
+    InputStream streamObject(String objectKey);
 }
