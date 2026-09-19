@@ -1,0 +1,45 @@
+# Build output
+target/
+api/target/
+worker/target/
+*.jar
+*.war
+*.class
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Environment / secrets — NEVER commit these
+.env
+.env.*
+*.secret
+secrets/
+
+# Docker local overrides
+docker-compose.override.yml
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+
+# Temporary test video files
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# SQL migration scratch files
+migrate_*.sql

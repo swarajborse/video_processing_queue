@@ -1,9 +1,43 @@
+# Source control
 .git
 .gitignore
+
+# IDE / editor configs
 .idea
 .vscode
-target
-api/target
+*.iml
+
+# Build artefacts (excluded from runtime image)
+target/
+api/target/
+worker/target/
+
+# Logs
 *.log
+logs/
+
+# Environment and secrets — must never be baked into the image
 .env
+.env.*
+*.secret
+secrets/
+
+# Docker compose override files
+docker-compose.override.yml
+
+# Documentation / markdown
 README.md
+*.md
+
+# SQL migration scratch files — applied separately, not shipped in image
+migrate_*.sql
+
+# Stray video test files
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# OS noise
+.DS_Store
+Thumbs.db

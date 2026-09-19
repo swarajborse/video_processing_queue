@@ -1,6 +1,5 @@
 package com.videoprocessing.api.exception;
 
-import com.videoprocessing.api.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,7 +10,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
-import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -68,30 +66,37 @@ public class GlobalExceptionHandler {
 
 
     @ExceptionHandler(InvalidVideoException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidVideo(
-            InvalidVideoException exception
+    public ResponseEntity<ApiErrorResponse> handleInvalidVideo(
+            InvalidVideoException exception,
+            HttpServletRequest request
     ) {
-
-        ErrorResponse response =
-                new ErrorResponse(
-                        HttpStatus.BAD_REQUEST.value(),
-                        "BAD_REQUEST",
-                        exception.getMessage()
-                );
-
+        ApiErrorResponse response = new ApiErrorResponse(
+                Instant.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                "BAD_REQUEST",
+                exception.getMessage(),
+                request.getRequestURI()
+        );
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(response);
     }
 
     @ExceptionHandler(ObjectStorageException.class)
-    public ResponseEntity<ErrorResponse> handleObjectStorageException(
-            ObjectStorageException exception
-    ){
-        ErrorResponse response =new ErrorResponse(
+    public ResponseEntity<ApiErrorResponse> handleObjectStorageException(
+            ObjectStorageException exception,
+            HttpServletRequest request
+    ) {
+        // Log internally — do NOT expose storage paths or credentials to the caller
+        log.error("Object storage error on {} {}: {}",
+                request.getMethod(), request.getRequestURI(), exception.getMessage(), exception);
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                Instant.now(),
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "INTERNAL_SERVER_ERROR",
-                exception.getMessage()
+                "STORAGE_ERROR",
+                "A storage error occurred. Please try again later.",
+                request.getRequestURI()
         );
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -102,17 +107,21 @@ public class GlobalExceptionHandler {
 
 
     @ExceptionHandler(VideoProcessingException.class)
-    public ResponseEntity<Map<String, Object>> handleVideoProcessingException(
-            VideoProcessingException e
+    public ResponseEntity<ApiErrorResponse> handleVideoProcessingException(
+            VideoProcessingException exception,
+            HttpServletRequest request
     ) {
+        // Log the full detail internally — FFmpeg/filesystem paths must not reach the client
+        log.error("Video processing error on {} {}: {}",
+                request.getMethod(), request.getRequestURI(), exception.getMessage(), exception);
 
-        Map<String, Object> response = Map.of(
-                "status", 500,
-                "message", "VIDEO_PROCESSING_ERROR",
-                "error", e.getMessage(),
-                "timestamp", Instant.now().toString()
+        ApiErrorResponse response = new ApiErrorResponse(
+                Instant.now(),
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "VIDEO_PROCESSING_ERROR",
+                "Video processing failed. Please try again later.",
+                request.getRequestURI()
         );
-
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(response);
