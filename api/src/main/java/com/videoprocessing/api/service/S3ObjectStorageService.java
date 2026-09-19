@@ -8,23 +8,31 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 
 @Service
 public class S3ObjectStorageService implements ObjectStorageService {
 
     private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
     private final String bucket;
 
     public S3ObjectStorageService(
             S3Client s3Client,
+            S3Presigner s3Presigner,
             @Value("${aws.s3.bucket}") String bucket
     ) {
         this.s3Client = s3Client;
+        this.s3Presigner = s3Presigner;
         this.bucket = bucket;
     }
 
@@ -33,7 +41,6 @@ public class S3ObjectStorageService implements ObjectStorageService {
             MultipartFile file,
             String objectKey
     ) {
-
         try {
             PutObjectRequest request =
                     PutObjectRequest.builder()
@@ -62,9 +69,7 @@ public class S3ObjectStorageService implements ObjectStorageService {
 
     @Override
     public void upload(Path file, String key) {
-
         try {
-
             if (!Files.exists(file)) {
                 throw new IllegalArgumentException(
                         "File does not exist: " + file
@@ -78,7 +83,6 @@ public class S3ObjectStorageService implements ObjectStorageService {
             }
 
             long fileSize = Files.size(file);
-
             String contentType = Files.probeContentType(file);
 
             if (contentType == null) {
@@ -92,7 +96,6 @@ public class S3ObjectStorageService implements ObjectStorageService {
                     .build();
 
             try (InputStream inputStream = Files.newInputStream(file)) {
-
                 s3Client.putObject(
                         request,
                         RequestBody.fromInputStream(
@@ -103,7 +106,6 @@ public class S3ObjectStorageService implements ObjectStorageService {
             }
 
         } catch (IOException e) {
-
             throw new RuntimeException(
                     "Failed to upload local file to object storage: " + file,
                     e
@@ -116,9 +118,7 @@ public class S3ObjectStorageService implements ObjectStorageService {
             String objectKey,
             Path destination
     ) {
-
         try {
-
             GetObjectRequest request =
                     GetObjectRequest.builder()
                             .bucket(bucket)
@@ -131,9 +131,32 @@ public class S3ObjectStorageService implements ObjectStorageService {
             );
 
         } catch (Exception e) {
-
             throw new ObjectStorageException(
                     "Failed to download video from object storage",
+                    e
+            );
+        }
+    }
+
+    @Override
+    public String generatePresignedDownloadUrl(String objectKey, int expirationMinutes) {
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(objectKey)
+                    .build();
+
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofMinutes(expirationMinutes))
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+
+            PresignedGetObjectRequest presigned = s3Presigner.presignGetObject(presignRequest);
+            return presigned.url().toString();
+
+        } catch (Exception e) {
+            throw new ObjectStorageException(
+                    "Failed to generate presigned URL for key: " + objectKey,
                     e
             );
         }

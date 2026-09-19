@@ -7,9 +7,11 @@ import com.videoprocessing.api.entity.ProcessingOutputType;
 import com.videoprocessing.api.enum_.VideoResolution;
 import com.videoprocessing.api.event.VideoProcessingEvent;
 import com.videoprocessing.api.exception.ResourceNotFoundException;
+import com.videoprocessing.api.metrics.VideoProcessingMetrics;
 import com.videoprocessing.api.model.VideoMetadata;
 import com.videoprocessing.api.repository.ProcessingJobRepository;
 import com.videoprocessing.api.repository.ProcessingOutputRepository;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -36,6 +38,7 @@ public class VideoProcessingWorker {
     private final KafkaVideoProcessingEventPublisher eventPublisher;
     private final DeadLetterEventPublisher deadLetterEventPublisher;
     private final RetryBackoffCalculator retryBackoffCalculator;
+    private final VideoProcessingMetrics metrics;
     public VideoProcessingWorker(
             ObjectStorageService objectStorageService,
             ProcessingJobRepository processingJobRepository,
@@ -48,7 +51,8 @@ public class VideoProcessingWorker {
             RetryHandler retryHandler,
             KafkaVideoProcessingEventPublisher eventPublisher,
             DeadLetterEventPublisher deadLetterEventPublisher,
-            RetryBackoffCalculator retryBackoffCalculator
+            RetryBackoffCalculator retryBackoffCalculator,
+            VideoProcessingMetrics metrics
     ) {
         this.objectStorageService = objectStorageService;
         this.processingJobRepository = processingJobRepository;
@@ -62,6 +66,7 @@ public class VideoProcessingWorker {
         this.eventPublisher = eventPublisher;
         this.deadLetterEventPublisher = deadLetterEventPublisher;
         this.retryBackoffCalculator = retryBackoffCalculator;
+        this.metrics = metrics;
     }
 
     private void updateHeartbeat(ProcessingJob job) {
@@ -70,6 +75,10 @@ public class VideoProcessingWorker {
     }
 
     public void process(VideoProcessingEvent event) {
+
+
+        Timer.Sample sample = Timer.start();
+        metrics.jobStarted();
 
         log.info("WORKER: Received event for job {}", event.jobId());
 
@@ -102,6 +111,8 @@ public class VideoProcessingWorker {
                 workspaceManager.create();
 
         log.info("WORKER: Workspace created for job {}", job.getId());
+
+
 
         try {
 
@@ -262,6 +273,7 @@ public class VideoProcessingWorker {
             job.setCompletedAt(Instant.now());
             job.setProgress(100);
             job.setStatus(ProcessingJobStatus.COMPLETED);
+            metrics.recordProcessed();
 
             processingJobRepository.save(job);
 
@@ -303,6 +315,7 @@ public class VideoProcessingWorker {
             }
 
             job.setStatus(ProcessingJobStatus.FAILED);
+            metrics.recordFailed();
 
             processingJobRepository.save(job);
 
@@ -312,6 +325,9 @@ public class VideoProcessingWorker {
             /*
              * Always remove temporary files
              */
+            metrics.jobFinished();
+
+            sample.stop(metrics.processingDuration());
             workspaceManager.cleanup(workspace);
         }
     }

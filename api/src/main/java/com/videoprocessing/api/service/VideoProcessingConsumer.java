@@ -9,6 +9,7 @@ public class VideoProcessingConsumer {
 
     private final VideoProcessingService processingService;
 
+
     public VideoProcessingConsumer(
             VideoProcessingService processingService
     ) {

@@ -8,7 +8,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
-public class ApiApplication {
+public class
+ApiApplication {
 
 	static {
 		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kolkata"));

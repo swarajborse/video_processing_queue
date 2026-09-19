@@ -21,4 +21,8 @@ public interface ObjectStorageService {
             String key
     );
 
+    String generatePresignedDownloadUrl(
+            String objectKey,
+            int expirationMinutes
+    );
 }
