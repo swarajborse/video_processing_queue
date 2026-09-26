@@ -85,10 +85,7 @@ public class VideoUploadServiceImpl implements VideoUploadService {
         // --- Upload original video to object storage ---
         UUID videoId = UUID.randomUUID();
 
-        String objectKey =
-                "videos/"
-                        + videoId
-                        + "/original/original.mp4";
+        String objectKey = "videos/" + videoId + "/original/original.mp4";
 
         objectStorageService.upload(file, objectKey);
 
@@ -128,4 +125,4 @@ public class VideoUploadServiceImpl implements VideoUploadService {
                 savedVideo.getStatus()
         );
     }
-}
+}

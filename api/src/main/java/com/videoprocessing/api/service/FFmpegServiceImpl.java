@@ -39,7 +39,8 @@ public class FFmpegServiceImpl implements FFmpegService {
                 "-i", input.toAbsolutePath().toString(),
                 "-vf", "scale=-2:" + resolution.height(),
                 "-c:v", "libx264",
-                "-preset", "fast",
+                "-preset", "veryfast",
+                "-threads", "1",
                 "-crf", "23",
                 "-c:a", "aac",
                 output.toAbsolutePath().toString()
