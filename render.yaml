@@ -111,4 +111,4 @@ databases:
   - name: video-postgres
     plan: free
     databaseName: video_processing
-    user: postgres
+    user: vidflow
