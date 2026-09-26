@@ -19,13 +19,27 @@ services:
     plan: free
     healthCheckPath: /actuator/health
     envVars:
-      # Database (auto-linked to Render Postgres)
-      - key: SPRING_DATASOURCE_URL
+      # Database — individual properties so we can build a jdbc:postgresql:// URL
+      - key: DB_HOST
         fromDatabase:
           name: video-postgres
-          property: jdbcConnectionString
-      - key: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-        value: org.postgresql.Driver
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: video-postgres
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: video-postgres
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: video-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: video-postgres
+          property: password
 
       # Kafka — Redpanda Serverless (SASL_SSL / SCRAM-SHA-256)
       # Get these from: cloud.redpanda.com → your cluster → Connect
@@ -62,10 +76,27 @@ services:
     dockerContext: .
     plan: free
     envVars:
-      - key: SPRING_DATASOURCE_URL
+      # Database — individual properties so we can build a jdbc:postgresql:// URL
+      - key: DB_HOST
         fromDatabase:
           name: video-postgres
-          property: jdbcConnectionString
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: video-postgres
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: video-postgres
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: video-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: video-postgres
+          property: password
 
       - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
         sync: false
