@@ -1,6 +1,10 @@
-# Render Blueprint — Video Processing Queue
+# Render Blueprint — VidFlow (Video Processing Queue)
 # https://render.com/docs/blueprint-spec
 # Deploy via: Render Dashboard → New → Blueprint → connect this repo
+#
+# External services required (free, no credit card):
+#   Kafka  → Redpanda Serverless  https://cloud.redpanda.com
+#   Storage → Supabase Storage (S3-compatible) https://supabase.com
 
 services:
 
@@ -23,19 +27,21 @@ services:
       - key: SPRING_DATASOURCE_DRIVER_CLASS_NAME
         value: org.postgresql.Driver
 
-      # Kafka (fill in Upstash values in Render dashboard)
+      # Kafka — Redpanda Serverless (SASL_SSL / SCRAM-SHA-256)
+      # Get these from: cloud.redpanda.com → your cluster → Connect
       - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
-        sync: false
+        sync: false   # e.g. seed-xxxx.us-east-1.aws.redpanda.cloud:9092
       - key: KAFKA_SASL_USERNAME
         sync: false
       - key: KAFKA_SASL_PASSWORD
         sync: false
 
-      # Object Storage — Cloudflare R2 / AWS S3 compatible
+      # Object Storage — Supabase Storage (S3-compatible)
+      # Get these from: Supabase Dashboard → Storage → S3 Access
       - key: AWS_S3_ENDPOINT
-        sync: false
-      - key: AWS_S3_PRESIGNED_URL_ENDPOINT
-        sync: false
+        sync: false   # https://<project-ref>.storage.supabase.co/storage/v1/s3
+      - key: AWS_S3_REGION
+        sync: false   # your Supabase project region, e.g. ap-south-1
       - key: AWS_S3_BUCKET
         value: video-processing
       - key: AWS_ACCESS_KEY
@@ -70,7 +76,7 @@ services:
 
       - key: AWS_S3_ENDPOINT
         sync: false
-      - key: AWS_S3_PRESIGNED_URL_ENDPOINT
+      - key: AWS_S3_REGION
         sync: false
       - key: AWS_S3_BUCKET
         value: video-processing
