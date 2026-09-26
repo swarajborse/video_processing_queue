@@ -1,0 +1,108 @@
+# Render Blueprint — Video Processing Queue
+# https://render.com/docs/blueprint-spec
+# Deploy via: Render Dashboard → New → Blueprint → connect this repo
+
+services:
+
+  # ──────────────────────────────────────────
+  # 1. Spring Boot API (Docker)
+  # ──────────────────────────────────────────
+  - type: web
+    name: video-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      # Database (auto-linked to Render Postgres)
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: video-postgres
+          property: connectionString
+      - key: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+        value: org.postgresql.Driver
+
+      # Kafka (fill in Upstash values in Render dashboard)
+      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        sync: false
+      - key: KAFKA_SASL_USERNAME
+        sync: false
+      - key: KAFKA_SASL_PASSWORD
+        sync: false
+
+      # Object Storage — Cloudflare R2 / AWS S3 compatible
+      - key: AWS_S3_ENDPOINT
+        sync: false
+      - key: AWS_S3_PRESIGNED_URL_ENDPOINT
+        sync: false
+      - key: AWS_S3_BUCKET
+        value: video-processing
+      - key: AWS_ACCESS_KEY
+        sync: false
+      - key: AWS_SECRET_KEY
+        sync: false
+
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+
+  # ──────────────────────────────────────────
+  # 2. Spring Boot Worker (Kafka consumer)
+  # ──────────────────────────────────────────
+  - type: worker
+    name: video-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile.worker
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: video-postgres
+          property: connectionString
+
+      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        sync: false
+      - key: KAFKA_SASL_USERNAME
+        sync: false
+      - key: KAFKA_SASL_PASSWORD
+        sync: false
+
+      - key: AWS_S3_ENDPOINT
+        sync: false
+      - key: AWS_S3_PRESIGNED_URL_ENDPOINT
+        sync: false
+      - key: AWS_S3_BUCKET
+        value: video-processing
+      - key: AWS_ACCESS_KEY
+        sync: false
+      - key: AWS_SECRET_KEY
+        sync: false
+
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+
+  # ──────────────────────────────────────────
+  # 3. React / Vite Frontend (Static Site)
+  # ──────────────────────────────────────────
+  - type: web
+    name: video-frontend
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: ./frontend/dist
+    plan: free
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false   # set to your video-api Render URL
+      - key: VITE_GRAFANA_URL
+        value: ""
+
+databases:
+  - name: video-postgres
+    plan: free
+    databaseName: video_processing
+    user: postgres
