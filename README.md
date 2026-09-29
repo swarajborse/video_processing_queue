@@ -1,5 +1,5 @@
 
-# Advanced Video Processing Queue
+# VidFlow - Video Processing Queue
 
 A production-oriented **asynchronous video processing backend** built with Spring Boot, Kafka, PostgreSQL, S3-compatible storage, and FFmpeg.
 
